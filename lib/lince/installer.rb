@@ -22,8 +22,8 @@ module Lince
           if content.include?(MARK)
             @out.puts("  #{hook}: ya llamaba a Lince")
           else
-            File.write(path, content.end_with?("\n") ? content + line + "\n" : content + "\n" + line + "\n")
-            @out.puts("  #{hook}: añadida la línea de Lince")
+            File.write(path, insert_after_shebang(content, line))
+            @out.puts("  #{hook}: añadida la línea de Lince al principio")
           end
         else
           File.write(path, "#!/bin/sh\n#{line}\n")
@@ -33,5 +33,13 @@ module Lince
       end
       @out.puts("Listo. Falta el token: bin/rails credentials:edit → lince: { token: … } (Lince › Ajustes del proyecto › Integración)")
     end
+
+    private
+      # Al principio, no al final: si el hook termina con un comando que debe poder parar el deploy (migraciones),
+      # una línea con «|| true» detrás cambiaría su código de salida a 0.
+      def insert_after_shebang(content, line)
+        first, rest = content.split("\n", 2)
+        first.start_with?("#!") ? "#{first}\n#{line}\n#{rest}" : "#{line}\n#{content}"
+      end
   end
 end

@@ -11,8 +11,8 @@ class InstallerTest < Minitest::Test
       assert_match "bundle exec lince deploy started || true", pre
       assert File.executable?("#{root}/.kamal/hooks/pre-deploy")
       post = File.read("#{root}/.kamal/hooks/post-deploy")
-      assert post.start_with?("#!/bin/sh\necho hecho\n")
-      assert_match "lince deploy finished", post
+      assert post.start_with?("#!/bin/sh\nbundle exec lince deploy finished"), "va justo después del shebang"
+      assert post.end_with?("echo hecho\n"), "el último comando sigue siendo el del hook: su código de salida manda"
 
       Lince::Installer.new(root, out: StringIO.new).run
       assert_equal 1, File.read("#{root}/.kamal/hooks/post-deploy").scan("lince deploy").size, "dos instalaciones no duplican la línea"

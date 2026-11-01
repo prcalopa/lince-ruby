@@ -1,9 +1,12 @@
 module Lince
   # El token sale, por orden, de LINCE_TOKEN, de las credenciales de Rails (lince.token) o de lo que se configure.
   class Configuration
-    attr_accessor :endpoint, :token, :health_path, :timeout
+    attr_accessor :endpoint, :token, :health_path, :timeout, :ignored_errors, :errors, :heartbeats
 
     def initialize
+      @ignored_errors = []
+      @errors = true      # captura de errores (solo en producción)
+      @heartbeats = true  # latidos de config/recurring.yml (solo en producción)
       @endpoint = ENV.fetch("LINCE_ENDPOINT", "https://lince.perecalopa.dev")
       @token = ENV["LINCE_TOKEN"]
       @health_path = "/lince/health"
@@ -11,7 +14,14 @@ module Lince
     end
 
     def token
-      @token ||= Credentials.read(Dir.pwd)
+      @token ||= rails_credentials || Credentials.read(Dir.pwd)
+    end
+
+    # Dentro de la app ya están cargadas; desde los hooks de Kamal, no.
+    def rails_credentials
+      Rails.application.credentials.dig(:lince, :token) if defined?(Rails) && Rails.respond_to?(:application) && Rails.application
+    rescue StandardError
+      nil
     end
   end
 

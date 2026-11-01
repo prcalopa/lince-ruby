@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+# Uso desde los hooks de Kamal: lince deploy started|finished|failed. Siempre sale con 0: un aviso no para un deploy.
+$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+require "lince"
+
+command, event = ARGV
+case command
+when "deploy"
+  begin
+    Lince::Deploy.notify(event.to_s)
+  rescue ArgumentError => e
+    warn "[lince] #{e.message}. Uso: lince deploy started|finished|failed"
+  end
+when "version", "--version", "-v"
+  puts Lince::VERSION
+else
+  warn "Uso: lince deploy started|finished|failed · lince version"
+end
+exit 0

@@ -7,8 +7,14 @@ Cliente de [Lince](https://github.com/prcalopa) para apps Rails desplegadas con 
 
 ## Instalar
 
+En el `Gemfile`:
+
+```ruby
+gem "lince", github: "prcalopa/lince-ruby", tag: "v0.1.1"
+```
+
 ```bash
-bundle add lince --github prcalopa/lince-ruby --tag v0.1.0
+bundle install
 bin/rails lince:install
 bin/rails credentials:edit
 ```

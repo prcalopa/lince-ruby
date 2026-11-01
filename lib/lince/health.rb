@@ -37,9 +37,11 @@ module Lince
         "error"
       end
 
-      # Hay al menos un proceso de Solid Queue vivo (latido en los últimos 5 minutos).
+      # Hay al menos un proceso de Solid Queue vivo (latido en los últimos 5 minutos). Si la app nunca ha
+      # arrancado ninguno (tiene la gema pero no la usa), no se comprueba.
       def queue
         return unless defined?(SolidQueue::Process)
+        return unless SolidQueue::Process.exists?
         SolidQueue::Process.where(last_heartbeat_at: (Time.now - 300)..).exists? ? "ok" : "error"
       rescue StandardError
         "error"

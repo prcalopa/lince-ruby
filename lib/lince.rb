@@ -6,6 +6,7 @@ require "lince/deploy"
 require "lince/scrubber"
 require "lince/errors"
 require "lince/heartbeats"
+require "lince/requests"
 require "lince/installer"
 require "lince/railtie" if defined?(Rails::Railtie)
 

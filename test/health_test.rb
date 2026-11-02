@@ -12,6 +12,8 @@ class HealthTest < Minitest::Test
     data = JSON.parse(body.first)
     assert_equal "ok", data["status"]
     assert_equal Lince::VERSION, data["lince"]
+    assert_kind_of Hash, data["metrics"]
+    assert data["metrics"]["disk_free_pct"].between?(0, 100), "df funciona"
 
     assert_equal [ "app" ], call("/otra")[2]
     assert_equal [ "app" ], call("/lince/health", "POST")[2]

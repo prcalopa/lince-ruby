@@ -14,7 +14,7 @@ Errores y latidos solo funcionan en producción.
 En el `Gemfile`:
 
 ```ruby
-gem "lince", github: "prcalopa/lince-ruby", tag: "v0.2.0"
+gem "lince", github: "prcalopa/lince-ruby", tag: "v0.3.0"
 ```
 
 ```bash

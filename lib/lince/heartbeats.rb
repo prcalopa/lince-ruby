@@ -1,4 +1,5 @@
 require "yaml"
+require "time"
 require "erb"
 
 module Lince
@@ -7,9 +8,11 @@ module Lince
   module Heartbeats
     module_function
 
-    def beat(name, schedule: nil, status: "ok", client: Lince.client)
-      payload = { beats: [ { name: name.to_s, schedule: schedule, status: status, at: Time.now.utc.iso8601 } ] }
-      Thread.new { client.post("/ingest/v1/apps/heartbeats", payload) } # sin bloquear el job
+    # due_at: la hora a la que tocaba (la del horario, no la de fin); duration_ms: lo que ha tardado.
+    def beat(name, schedule: nil, status: "ok", due_at: nil, started_at: nil, duration_ms: nil, client: Lince.client)
+      beat = { name: name.to_s, schedule: schedule, status: status, at: Time.now.utc.iso8601,
+               due_at: due_at&.utc&.iso8601, started_at: started_at&.utc&.iso8601, duration_ms: duration_ms&.round }.compact
+      Thread.new { client.post("/ingest/v1/apps/heartbeats", { beats: [ beat ] }) } # sin bloquear el job
     end
 
     # { "JobClass" => [{ key:, schedule:, args: }] } de config/recurring.yml para el entorno actual.
@@ -34,15 +37,21 @@ module Lince
 
     def subscribe(tasks)
       return if tasks.empty?
-      ActiveSupport::Notifications.subscribe("perform.active_job") do |*, payload|
-        job = payload[:job]
+      ActiveSupport::Notifications.subscribe("perform.active_job") do |*args|
+        event = ActiveSupport::Notifications::Event.new(*args)
+        job = event.payload[:job]
         task = job && task_for(tasks, job)
-        beat(task[:key], schedule: task[:schedule], status: payload[:exception_object] ? "failed" : "ok") if task
+        next unless task
+        started = Time.now - event.duration / 1000.0
+        due = [ job.scheduled_at, job.enqueued_at ].compact.map { it.is_a?(String) ? Time.parse(it) : it }.first
+        beat(task[:key], schedule: task[:schedule], status: event.payload[:exception_object] ? "failed" : "ok",
+          due_at: due, started_at: started, duration_ms: event.duration)
       rescue StandardError
         nil
       end
     end
   end
 
-  def self.heartbeat(name, schedule: nil, status: "ok") = Heartbeats.beat(name, schedule: schedule, status: status)
+  # Para crons de fuera: Lince.heartbeat("backup", schedule: "every day at 3am", duration_ms: …).
+  def self.heartbeat(name, schedule: nil, status: "ok", duration_ms: nil) = Heartbeats.beat(name, schedule: schedule, status: status, duration_ms: duration_ms)
 end

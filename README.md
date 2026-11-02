@@ -2,7 +2,7 @@
 
 Cliente de [Lince](https://github.com/prcalopa) para apps Rails desplegadas con Kamal. Hace cuatro cosas:
 
-- **`/lince/health`**: comprueba la base de datos, la caché y Solid Queue y devuelve la versión desplegada. Responde 200 si todo va bien y 503 si no. No da datos sensibles.
+- **`/lince/health`**: comprueba la base de datos, la caché y Solid Queue, y devuelve la versión desplegada y cifras de recursos (memoria, disco, base de datos, cola y jobs fallidos). Responde 200 si todo va bien y 503 si no. **Es privado**: sin el token del proyecto en `Authorization: Bearer …` responde 404, como si no existiera.
 - **Avisos de despliegue**: los hooks `pre-deploy` y `post-deploy` de Kamal llaman a `lince deploy`, que avisa a Lince. Si Lince no responde, el deploy sigue igual.
 - **Errores de producción**: se suscribe al error reporter de Rails, agrupa por huella y manda lotes cada 10 segundos desde un hilo aparte. Del error solo salen la clase, el mensaje (sin emails, números largos, tokens ni query strings), el backtrace y el controlador o job. Nunca parámetros, cuerpos ni cabeceras. Ignora los errores de ruido habituales (`RecordNotFound`, `RoutingError`, CSRF…).
 - **Latidos**: cada trabajo recurrente de `config/recurring.yml` (Solid Queue) avisa al terminar, con su horario, y Lince avisa si uno no corre a su hora. Para crons de fuera: `Lince.heartbeat("backup", schedule: "every day at 3am")`.
@@ -14,7 +14,7 @@ Errores y latidos solo funcionan en producción.
 En el `Gemfile`:
 
 ```ruby
-gem "lince", github: "prcalopa/lince-ruby", tag: "v0.3.0"
+gem "lince", github: "prcalopa/lince-ruby", tag: "v0.3.1"
 ```
 
 ```bash

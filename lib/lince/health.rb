@@ -1,8 +1,10 @@
 require "json"
+require "openssl"
 
 module Lince
-  # GET /lince/health: base de datos, caché y cola (Solid Queue) con la versión desplegada. 200 si todo va bien, 503 si no.
-  # No da datos sensibles: solo nombres de comprobación, ok o error y versiones.
+  # GET /lince/health: base de datos, caché y cola (Solid Queue), la versión desplegada y cifras de recursos.
+  # 200 si todo va bien, 503 si no. Privado: sin el token del proyecto (Authorization: Bearer …) responde 404,
+  # como si no existiera.
   class Health
     def initialize(app, path: Lince.config.health_path)
       @app, @path = app, path
@@ -10,6 +12,7 @@ module Lince
 
     def call(env)
       return @app.call(env) unless env["PATH_INFO"] == @path && %w[GET HEAD].include?(env["REQUEST_METHOD"])
+      return [ 404, { "content-type" => "text/plain", "cache-control" => "no-store" }, [ "Not Found" ] ] unless authorized?(env)
       checks = { database: database, cache: cache, queue: queue }.compact
       ok = checks.values.all? { |v| v == "ok" }
       body = JSON.generate(status: ok ? "ok" : "degraded", version: Health.revision, lince: VERSION, checks: checks, metrics: Health.metrics)
@@ -60,6 +63,12 @@ module Lince
     end
 
     private
+      def authorized?(env)
+        expected = Lince.config.token.to_s
+        given = env["HTTP_AUTHORIZATION"].to_s.delete_prefix("Bearer ")
+        !expected.empty? && given.bytesize == expected.bytesize && OpenSSL.fixed_length_secure_compare(given, expected)
+      end
+
       def database
         return unless defined?(ActiveRecord::Base)
         ActiveRecord::Base.connection.select_value("SELECT 1")

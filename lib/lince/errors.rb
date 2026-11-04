@@ -10,10 +10,12 @@ module Lince
       ActionDispatch::Http::MimeNegotiation::InvalidType ActionDispatch::Http::Parameters::ParseError
       AbstractController::ActionNotFound Rack::Timeout::RequestTimeoutException
     ].freeze
+    RUNNER_SOURCE = "application.runner.railties".freeze # lo que llega sin capturar hasta `rails runner`
 
     class Subscriber
       def report(error, handled:, severity:, context:, source: nil)
         return unless severity == :error
+        return if source == Errors::RUNNER_SOURCE && !Lince.config.runner_errors
         return if (Errors::IGNORED + Lince.config.ignored_errors).include?(error.class.name)
         Errors.buffer.add(Errors.payload(error, context))
       rescue StandardError

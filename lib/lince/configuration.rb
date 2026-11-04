@@ -1,11 +1,12 @@
 module Lince
   # El token sale, por orden, de LINCE_TOKEN, de las credenciales de Rails (lince.token) o de lo que se configure.
   class Configuration
-    attr_accessor :endpoint, :token, :health_path, :timeout, :ignored_errors, :errors, :heartbeats, :requests
+    attr_accessor :endpoint, :token, :health_path, :timeout, :ignored_errors, :errors, :runner_errors, :heartbeats, :requests
 
     def initialize
       @ignored_errors = []
       @errors = true      # captura de errores (solo en producción)
+      @runner_errors = ENV["LINCE_RUNNER_ERRORS"] == "true" # errores sin capturar en `rails runner`: por defecto, no
       @heartbeats = true  # latidos de config/recurring.yml (solo en producción)
       @requests = true    # tiempos y códigos de las peticiones (solo en producción)
       @endpoint = ENV.fetch("LINCE_ENDPOINT", "https://lince.perecalopa.dev")

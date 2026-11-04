@@ -49,4 +49,55 @@ class ErrorsTest < Minitest::Test
     sub.report(not_found.new, handled: false, severity: :error, context: {})
     assert_equal before, Lince::Errors.buffer.size
   end
+
+  def with_buffer
+    original = Lince::Errors.buffer
+    buffer = Lince::Errors::Buffer.new(client: FakeClient.new, interval: 3600)
+    Lince::Errors.instance_variable_set(:@buffer, buffer)
+    yield buffer
+  ensure
+    Lince::Errors.instance_variable_set(:@buffer, original)
+  end
+
+  def with_runner_errors(value)
+    original = Lince.config.runner_errors
+    Lince.config.runner_errors = value
+    yield
+  ensure
+    Lince.config.runner_errors = original
+  end
+
+  def report_from(source)
+    Lince::Errors::Subscriber.new.report(error_with("x", [ "runner_command.rb:49:in `<main>'" ]), handled: false, severity: :error, context: {}, source: source)
+  end
+
+  def test_runner_errors_are_off_unless_the_env_turns_them_on
+    original = ENV.delete("LINCE_RUNNER_ERRORS")
+    refute Lince::Configuration.new.runner_errors
+    ENV["LINCE_RUNNER_ERRORS"] = "true"
+    assert Lince::Configuration.new.runner_errors
+  ensure
+    original ? ENV["LINCE_RUNNER_ERRORS"] = original : ENV.delete("LINCE_RUNNER_ERRORS")
+  end
+
+  def test_subscriber_skips_rails_runner_errors_by_default
+    with_buffer do |buffer|
+      with_runner_errors(false) { report_from("application.runner.railties") }
+      assert_equal 0, buffer.size
+    end
+  end
+
+  def test_subscriber_reports_rails_runner_errors_when_enabled
+    with_buffer do |buffer|
+      with_runner_errors(true) { report_from("application.runner.railties") }
+      assert_equal 1, buffer.size
+    end
+  end
+
+  def test_subscriber_keeps_reporting_errors_from_other_sources
+    with_buffer do |buffer|
+      with_runner_errors(false) { report_from("application.active_job") }
+      assert_equal 1, buffer.size
+    end
+  end
 end

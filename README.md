@@ -42,6 +42,7 @@ Dependabot abre el PR cuando sale una versión nueva. Lince también avisa si un
 |---|---|---|
 | `LINCE_TOKEN` | Token del proyecto, si no está en las credenciales | — |
 | `LINCE_ENDPOINT` | Dónde está Lince | `https://lince.perecalopa.dev` |
+| `LINCE_RUNNER_ERRORS` | `true` reporta los errores sin capturar en `rails runner` | sin reportar |
 
 En un initializer se puede ajustar:
 
@@ -49,8 +50,17 @@ En un initializer se puede ajustar:
 Lince.configure do |c|
   c.ignored_errors += [ "MiApp::ErrorEsperado" ]
   c.errors = false      # sin captura de errores
+  c.runner_errors = true # también los errores sin capturar en `rails runner`
   c.heartbeats = false  # sin latidos
 end
 ```
+
+Los errores que llegan sin capturar hasta `rails runner` no se reportan por defecto: suelen ser comandos escritos a mano y quien los lanza ya ve el fallo. Actívalos en un proyecto con `c.runner_errors = true` si usa `rails runner` para procesos que nadie mira, o solo durante un mantenimiento, sin desplegar:
+
+```bash
+bin/kamal app exec --reuse -e LINCE_RUNNER_ERRORS:true "bin/rails runner 'MiTarea.call'"
+```
+
+Los errores que un job o el propio código reportan antes de llegar a `rails runner` se siguen mandando.
 
 El token solo sirve para mandar eventos de su proyecto a Lince. No da acceso a nada más.

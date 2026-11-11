@@ -100,4 +100,78 @@ class ErrorsTest < Minitest::Test
       assert_equal 1, buffer.size
     end
   end
+
+  def gem_line(gem, path, line, method) = "/usr/local/bundle/ruby/4.0.0/gems/#{gem}/#{path}:#{line}:in '#{method}'"
+
+  def test_the_fingerprint_of_errors_with_an_app_frame_does_not_change
+    a = Lince::Errors.payload(error_with("x", [ "#{Dir.pwd}/app/models/deal.rb:12:in `total'" ]))
+    assert_equal Digest::SHA256.hexdigest("RuntimeError|app/models/deal.rb:`total'")[0, 32], a[:fingerprint], "si cambia, todos los errores vuelven a ser nuevos"
+  end
+
+  def test_without_an_app_frame_uses_the_gem_frame_and_where_it_happened
+    json = Lince::Errors.payload(error_with("x", [ gem_line("json-3.1.0", "lib/json/common.rb", 297, "JSON.parse") ]), {}, source: "application.active_job")
+    json_upgraded = Lince::Errors.payload(error_with("x", [ gem_line("json-3.2.0", "lib/json/common.rb", 301, "JSON.parse") ]), {}, source: "application.active_job")
+    pg = Lince::Errors.payload(error_with("x", [ gem_line("pg-1.6.2", "lib/pg/connection.rb", 10, "PG::Connection.new") ]), {}, source: "application.active_job")
+    runner = Lince::Errors.payload(error_with("x", [ gem_line("json-3.1.0", "lib/json/common.rb", 297, "JSON.parse") ]), {}, source: "application.runner.railties")
+    assert_equal json[:fingerprint], json_upgraded[:fingerprint], "ni la versión de la gema ni la línea"
+    refute_equal json[:fingerprint], pg[:fingerprint], "dos RuntimeError de gemas distintas no son el mismo error"
+    refute_equal json[:fingerprint], runner[:fingerprint]
+    assert_equal "gems/json/lib/json/common.rb:297 en 'JSON.parse'", json[:location]
+    assert_equal "Active Job", json[:context]
+    assert_equal "rails runner", runner[:context]
+  end
+
+  def named_error(name, backtrace)
+    Class.new(StandardError) { define_singleton_method(:name) { name } }.new("x").tap { it.set_backtrace(backtrace) }
+  end
+
+  def test_ignores_bot_noise_raised_outside_the_app
+    with_buffer do |buffer|
+      sub = Lince::Errors::Subscriber.new
+      sub.report(named_error("ActionDispatch::RemoteIp::IpSpoofAttackError", [ gem_line("actionpack-8.1.4", "lib/x.rb", 1, "call") ]), handled: false, severity: :error, context: {})
+      sub.report(named_error("URI::InvalidURIError", [ gem_line("uri-1.1.1", "lib/uri.rb", 1, "parse") ]), handled: false, severity: :error, context: {})
+      assert_equal 0, buffer.size
+      sub.report(named_error("URI::InvalidURIError", [ "#{Dir.pwd}/app/models/link.rb:3:in `url'" ]), handled: false, severity: :error, context: {})
+      assert_equal 1, buffer.size, "desde la app sí es un fallo"
+    end
+  end
+
+  class FlakyClient
+    attr_accessor :up
+    attr_reader :calls
+    def initialize = (@calls = []) && (@up = false)
+    def post(path, payload) = (@calls << payload) && @up
+  end
+
+  def test_keeps_batches_lince_did_not_receive_and_resends_them_in_order_with_the_same_id
+    now = Time.now
+    client = FlakyClient.new
+    buffer = Lince::Errors::Buffer.new(client: client, interval: 3600, clock: -> { now })
+    buffer.add(Lince::Errors.payload(error_with("a", [ "#{Dir.pwd}/app/a.rb:1:in `a'" ])))
+    buffer.flush
+    assert_equal 1, buffer.pending
+    first = client.calls.last[:batch]
+
+    buffer.add(Lince::Errors.payload(error_with("b", [ "#{Dir.pwd}/app/b.rb:1:in `b'" ])))
+    buffer.flush
+    assert_equal first, client.calls.last[:batch], "el nuevo espera detrás del pendiente"
+    assert_equal 2, buffer.pending
+
+    client.up = true
+    buffer.flush
+    assert_equal [ first, first, first ], client.calls.first(3).map { it[:batch] }
+    assert_equal 0, buffer.pending
+    refute_equal first, client.calls.last[:batch]
+  end
+
+  def test_gives_up_on_a_batch_after_an_hour
+    now = Time.now
+    client = FlakyClient.new
+    buffer = Lince::Errors::Buffer.new(client: client, interval: 3600, clock: -> { now })
+    buffer.add(Lince::Errors.payload(error_with("a", [ "#{Dir.pwd}/app/a.rb:1:in `a'" ])))
+    buffer.flush
+    now += Lince::Errors::Buffer::KEEP + 1
+    buffer.flush
+    assert_equal 0, buffer.pending
+  end
 end

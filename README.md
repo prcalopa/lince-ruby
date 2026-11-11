@@ -4,7 +4,7 @@ Cliente de [Lince](https://github.com/prcalopa) para apps Rails desplegadas con 
 
 - **`/lince/health`**: comprueba la base de datos, la caché y Solid Queue, y devuelve la versión desplegada y cifras de recursos (memoria, disco, base de datos, cola y jobs fallidos). Responde 200 si todo va bien y 503 si no. **Es privado**: sin el token del proyecto en `Authorization: Bearer …` responde 404, como si no existiera.
 - **Avisos de despliegue**: los hooks `pre-deploy` y `post-deploy` de Kamal llaman a `lince deploy`, que avisa a Lince. Si Lince no responde, el deploy sigue igual.
-- **Errores de producción**: se suscribe al error reporter de Rails, agrupa por huella y manda lotes cada 10 segundos desde un hilo aparte. Del error solo salen la clase, el mensaje (sin emails, números largos, tokens ni query strings), el backtrace y el controlador o job. Nunca parámetros, cuerpos ni cabeceras. Ignora los errores de ruido habituales (`RecordNotFound`, `RoutingError`, CSRF…).
+- **Errores de producción**: se suscribe al error reporter de Rails, agrupa por huella y manda lotes cada 10 segundos desde un hilo aparte. Del error solo salen la clase, el mensaje (sin emails, números largos, tokens ni query strings), el backtrace y el controlador o job. Nunca parámetros, cuerpos ni cabeceras. Ignora los errores de ruido habituales (`RecordNotFound`, `RoutingError`, CSRF, `IpSpoofAttackError`, y `URI::InvalidURIError` cuando no pasa por código de la app: son bots). La huella es la clase y la primera línea de la app sin el número; si el error salta entero en una gema o en Rails, la primera línea de la gema sin su versión y dónde pasó (controlador, job o `rails runner`). Si Lince no responde, el lote se reintenta con el mismo id durante una hora y Lince no lo cuenta dos veces.
 - **Latidos**: cada trabajo recurrente de `config/recurring.yml` (Solid Queue) avisa al terminar, con su horario, la hora a la que tocaba y lo que ha tardado. Lince avisa si uno no corre a su hora o si tarda casi tanto como su intervalo. Para crons de fuera: `Lince.heartbeat("backup", schedule: "every day at 3am")`.
 
 Errores y latidos solo funcionan en producción.
@@ -14,7 +14,7 @@ Errores y latidos solo funcionan en producción.
 En el `Gemfile`:
 
 ```ruby
-gem "lince", github: "prcalopa/lince-ruby", tag: "v0.3.2"
+gem "lince", github: "prcalopa/lince-ruby", tag: "v0.5.0"
 ```
 
 ```bash
